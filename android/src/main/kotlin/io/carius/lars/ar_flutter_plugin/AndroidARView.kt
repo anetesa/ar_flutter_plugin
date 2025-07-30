@@ -121,30 +121,32 @@ internal class AndroidARView(
                                     Bitmap.Config.ARGB_8888);
 
 
-                            // Create a handler thread to offload the processing of the image.
-                            var handlerThread = HandlerThread("PixelCopier");
-                            handlerThread.start();
-                            // Make the request to copy.
-                            PixelCopy.request(arSceneView, bitmap, { copyResult:Int ->
-                                Log.d(TAG, "PIXELCOPY DONE")
-                                if (copyResult == PixelCopy.SUCCESS) {
-                                    try {
-                                        val mainHandler = Handler(context.mainLooper)
-                                        val runnable = Runnable {
-                                            val stream = ByteArrayOutputStream()
-                                            bitmap.compress(Bitmap.CompressFormat.PNG, 90, stream)
-                                            val data = stream.toByteArray()
-                                            result.success(data)
+                            // Use a handler thread to offload the processing of the image.
+                            val handlerThread = HandlerThread("PixelCopier")
+                            handlerThread.start()
+                            try {
+                                // Make the request to copy.
+                                PixelCopy.request(arSceneView, bitmap, { copyResult: Int ->
+                                    if (copyResult == PixelCopy.SUCCESS) {
+                                        try {
+                                            val mainHandler = Handler(context.mainLooper)
+                                            val runnable = Runnable {
+                                                val stream = ByteArrayOutputStream()
+                                                bitmap.compress(Bitmap.CompressFormat.PNG, 90, stream)
+                                                val data = stream.toByteArray()
+                                                result.success(data)
+                                            }
+                                            mainHandler.post(runnable)
+                                        } catch (e: IOException) {
+                                            result.error("e", e.message, e.stackTrace);
                                         }
-                                        mainHandler.post(runnable)
-                                    } catch (e: IOException) {
-                                        result.error("e", e.message, e.stackTrace);
+                                    } else {
+                                        result.error("e", "failed to take screenshot", null);
                                     }
-                                } else {
-                                    result.error("e", "failed to take screenshot", null);
-                                }
+                                }, Handler(handlerThread.looper))
+                            } finally {
                                 handlerThread.quitSafely();
-                            }, Handler(handlerThread.looper));
+                            }
                         }
                         "dispose" -> {
                             dispose()
@@ -923,5 +925,3 @@ internal class AndroidARView(
     }
 
 }
-
-
